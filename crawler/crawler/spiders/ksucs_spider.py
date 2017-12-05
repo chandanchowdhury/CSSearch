@@ -19,7 +19,7 @@ class KsuCSSpider(scrapy.Spider):
     def start_requests(self):
         urls = [
             "http://www.cs.ksu.edu", "http://cs.k-state.edu"
-            ,"https://www.cs.ksu.edu", "https://cs.k-state.edu"]
+            ,"https://www.cs.ksu.edu", "https://cs.k-state.edu"
         ]
 
         for url in urls:
@@ -63,7 +63,7 @@ class KsuCSSpider(scrapy.Spider):
             print("Cleaned URL: "+url_cleaned)
 
             # add the URL for crawling, the allowed_domain setting will ignore non K-state domains
-            #yield scrapy.Request(url=url_cleaned, callback=self.parse)
+            yield scrapy.Request(url=url_cleaned, callback=self.parse)
             
             #domain = urlparse(url_cleaned).netloc
             #print("Domain: "+ domain)
