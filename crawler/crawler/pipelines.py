@@ -5,6 +5,7 @@
 # Don't forget to add your pipeline to the ITEM_PIPELINES setting
 # See: http://doc.scrapy.org/en/latest/topics/item-pipeline.html
 
+from datetime import datetime
 from scrapy import signals
 from scrapy.exporters import JsonLinesItemExporter
 
@@ -30,7 +31,9 @@ class KSUPipeline(object):
 
     # Open the file when Spider starts
     def spider_opened(self, spider):
-        file = open('%s.json' % spider.name, 'w+b')
+        date_hour = datetime.strftime(datetime.now(), "%Y-%m-%d_%H")
+        file_name = ('%s_%s.json' % (spider.name, date_hour))
+        file = open(file_name, 'w+b')
         self.files[spider] = file
         self.exporter = JsonLinesItemExporter(file)
         self.exporter.start_exporting()
