@@ -6,14 +6,17 @@ A simple crawler and search written python for Information Retrieval & Machine L
 * Clone the repo
 
 * Setup virtualenv
-virtualenv CSSearch
+
+   ```virtualenv CSSearch```
 
 * Install the required packages
-pip install -r requirements.txt
+
+   ```pip install -r requirements.txt```
 
 ## Run
 * Run the crawler
-scrapy crawl ksucs
+
+   ```scrapy crawl ksucs```
 
 * Run the indexer
 
