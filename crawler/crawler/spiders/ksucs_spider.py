@@ -1,4 +1,12 @@
+from urlparse import urlparse
 import scrapy
+from bs4 import BeautifulSoup
+
+class WebPage(scrapy.Item):
+    page_url = scrapy.Field()
+    page_title = scrapy.Field()
+    page_content = scrapy.Field()
+    page_links = scrapy.Field()
 
 class KsuCSSpider(scrapy.Spider):
     name = "ksucs"
@@ -10,25 +18,59 @@ class KsuCSSpider(scrapy.Spider):
 
     def start_requests(self):
         urls = [
-            "http://cs.ksu.edu", "http://cs.k-state.edu"
-            #,"https://cs.ksu.edu", "https://cs.k-state.edu"]
+            "http://www.cs.ksu.edu", "http://cs.k-state.edu"
+            ,"https://www.cs.ksu.edu", "https://cs.k-state.edu"]
         ]
 
         for url in urls:
             yield scrapy.Request(url=url, callback=self.parse)
 
     def parse(self, response):
+        page = WebPage()
+
+        # Page URL
         print("Parsing: "+response.url)
-        #print(response.css("a::attr(href)").extract_first())
+        page['page_url'] = response.url
+
+        # Page title 
+        page['page_title'] = response.selector.xpath('//title/text()').extract()
+
+        # Page content
+        #page['page_content'] = response.selector.xpath('//text()').extract()
+        soup = BeautifulSoup(response.body, 'html.parser')
+        page['page_content'] = soup.get_text()
+
+        #print(response.css("a::attr(href)").extract_first())        
         
-        ## Get all the URLs in the page
+        ## Process all URLs in the page
+        page['page_links'] = []
         for href in response.css("a::attr(href)"):
+            print(href)
             
             ## Convert relative URLs into full URLs
             url = href.extract().split("/")
+
+            url_cleaned = ""
             # if starts with HTTP
             if url[0][:4] == "http":
-                print(href.extract())
+                url_cleaned = href.extract()
             else:
                 # else join with parent URL we are visiting
-                print(response.urljoin(href.extract()))
+                url_cleaned = response.urljoin(href.extract())
+
+            # Add the URL to the list of links contained in the page for link analysis
+            page['page_links'].append(url_cleaned)
+            print("Cleaned URL: "+url_cleaned)
+
+            # add the URL for crawling, the allowed_domain setting will ignore non K-state domains
+            #yield scrapy.Request(url=url_cleaned, callback=self.parse)
+            
+            #domain = urlparse(url_cleaned).netloc
+            #print("Domain: "+ domain)
+            #if domain[7:] == 'ksu.edu':
+            #    print("Adding to crawling list: "+url_cleaned)
+                #yield scrapy.Request(url=url_cleaned, callback=self.parse)
+            
+ 
+        # return the populated WebPage
+        yield page
