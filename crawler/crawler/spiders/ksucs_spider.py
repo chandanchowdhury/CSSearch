@@ -38,7 +38,7 @@ class KsuCSSpider(scrapy.Spider):
         page['page_url'] = response.url
 
         # Page title 
-        page['page_title'] = response.selector.xpath('//title/text()').extract()
+        page['page_title'] = response.selector.xpath('//title/text()').extract_first()
 
         # Page content
         # Save the page content "as it is", will process the content offline
