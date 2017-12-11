@@ -7,6 +7,8 @@ import json
 import string
 import hashlib
 
+from sets import Set
+
 from bs4 import BeautifulSoup
 
 from stemming.porter import stem
@@ -25,39 +27,38 @@ def getHash(url):
     return url
 
 
-def saveIndex(index_file, index_data):
+def savePickle(pickle_file, data):
     """
-        Save indexed data in ZPickle (Compressed Pickle) format.
+        Save data in Pickle format.
     """
-    print("Saving Index data to file: "+index_file)
+    print("Saving pickle data to file: "+pickle_file)
 
     try:
-        with open(index_file, "wb") as fd:
-            pickle.dump(index_data, fd)
+        with open(pickle_file, "wb") as fd:
+            pickle.dump(data, fd)            
     except pickle.PicklingError as pe:
         print("Failed: Saving pickle data")
         return 1
 
 
-def loadIndex(index_file):
+def loadPickle(pickle_file):
     """
-        Load the index file.
+        Load the Pickle data from file.
     """
-    print("Loading previous Index data from file: "+index_file)
+    print("Loading pickle data from file: "+pickle_file)
 
-    index_data = {}
+    data = None
     try:
-        with open(index_file, "rb") as fd:
-            index_data = pickle.load(fd)
+        with open(pickle_file, "rb") as fd:
+            data = pickle.load(fd)
     except EOFError:
         pass
     except pickle.UnpicklingError as upe:
         print("Failed: Loading Pickle Data")
-        index_data = None
     except IOError:
-        index_data = {}
+        data = {}
 
-    return index_data
+    return data
 
 def stemm_word(word):
     """
@@ -105,11 +106,16 @@ def parseSGML(data):
     for tag in soup.find_all(tags_to_remove):
         tag.decompose()
 
-    title = soup.title
+    try:
+        title = soup.title.get_text()
+    except AttributeError:
+        title = ""
+
     # Get the text between all tags joined by a space character
     contents = soup.get_text(' ')
-    # print("Title:", title)
-    # print("Text:", contents)
+
+    #print("Title:", title)
+    #print("Text:", contents)
 
     return title, contents
 
@@ -121,6 +127,7 @@ def sanitize(text, stop_word_list):
 
     :return: List of words
     """
+
     # convert the text into Unicode
     text = unicode(text)
 
@@ -183,7 +190,7 @@ def includeInVocabulary(vocabulary, doc_id, words):
     
     :param vocabulary A dictionary of words and docs which contain the word 
     :param doc_id: Document ID
-    :param word: List of words to be added to the Index
+    :param words: List of words to be added to the Index
 
     :return: Updated document index
     """
@@ -193,12 +200,15 @@ def includeInVocabulary(vocabulary, doc_id, words):
         # if the term is in the table
         if vocabulary.has_key(w):
             doc_entry = vocabulary.get(w)
+            doc_entry["df"] += 1
 
             # if the doc_id is already in the table
             if doc_entry.has_key(doc_id):
                 doc_entry[doc_id] += 1
+                
             else:
                 doc_entry[doc_id] = 1
+                
 
             vocabulary[w] = doc_entry
 
@@ -206,12 +216,46 @@ def includeInVocabulary(vocabulary, doc_id, words):
             # a dict of {doc_id, tf}
             doc_entry = {}
             doc_entry[doc_id] = 1
+            doc_entry["df"] = 1
 
             vocabulary[w] = doc_entry
 
     return vocabulary
 
+def updateLinksData(src_url, outgoing_links, link_data):
+    """
+        Keep a data structure of source links to destinations links.
 
+        :param source page URL
+        :param outgoing_links as link of URLs
+        :param link_data as dictionary of links with their own link of outgoing links
+
+        {src_link: 
+            Set(dest_link)
+        }
+    """
+
+    #print(outgoing_links)
+
+    new_link_set = Set()
+    # for each new link in the list
+    for l in outgoing_links:
+        # URL must start with HTTP
+        if l[:4] == "http":
+            # add the link to the set of links
+            new_link_set.add(l)
+
+    if link_data.has_key(src_url):
+        # get the link entry
+        link_set = link_data.get(src_url)  
+        # take the union of the link sets and save it back    
+        link_set = link_set | new_link_set
+        link_data[src_url] = link_set        
+    else:
+        # the source URL does not exists, create a new entry
+        link_data[src_url] = new_link_set
+
+    return link_data
 
 def process(scrapped_data_file):
     """
@@ -220,18 +264,26 @@ def process(scrapped_data_file):
     :param path: String
 
     :return:
-        N: Number of files read.
-        tf_idf_table: The TF-IDF data
+        index_data: The TF-IDF data
+        link_data: All links and their child links
     """
     index_file = "index_file.pkl"
-    index_data = None
-    doc_id_title = {}
+    link_file = "link_file.pkl"
+
+    index_data = {}
+    link_data = {}
 
     # load the previous index
-    index_data = loadIndex(index_file)
-    if index_data == None:
-        print("Cannot load index file")
-        exit(1)
+    #index_data = loadPickle(index_file)
+    #if index_data == None:
+    #    print("Cannot load index file")
+    #    exit(1)
+
+    # load the previous index
+    #link_data = loadPickle(link_file)
+    #if link_data == None:
+    #    print("Cannot load index file")
+    #    exit(1)
 
     # load scrapped data
     try:
@@ -247,74 +299,53 @@ def process(scrapped_data_file):
     for data in scrapped_data:
         webpage_data = json.loads(data)
 
-        title = webpage_data["page_title"][0]
-        _, content = parseSGML(webpage_data["page_content"])
+        title = webpage_data["page_title"]
         url = webpage_data["page_url"]
+        title, content = parseSGML(webpage_data["page_content"])
+        
         doc_id = getHash(url)
-
-        doc_id_title[doc_id] = title
+        #doc_id_title[doc_id] = title
 
         print("Processing: "+url)
-        print(content)
+        #print(content)
+        #print(title)
 
         # sanitize the text to get only useful words
-        words = sanitize(title + "\n" +content, stop_word_list)
+        words = sanitize(title + "\n" + content, stop_word_list)
 
         index_data = includeInVocabulary(index_data, doc_id, words)
 
-        break
+        link_data = updateLinksData(url, webpage_data['page_links'], link_data)
+
+        #break
 
     # Once the index has been created, save it for later reuse
-    #if saveIndex(index_file, index_data) > 0:
+    #if savePickle(index_file, index_data) > 0:
     #    print("Cannot save index file")
     #    exit(3)
 
+    #if savePickle(link_file, link_data) > 0:
+    #    print("Cannot save link file")
+    #    exit(3)
 
-    # now calculate and store TF-IDF for each term
-    tf_idf_table = {}
-
-    N = len(doc_id_title)
-    #print("N: %d" % (N))
-
-    for term in index_data:
-        #print("-"*20)
-
-        #print("Term: %s" % (term))
-        doc_entries = index_data.get(term)
-        df = len(doc_entries)
-        #print("DF: %d" % (df))
-
-        idf = {}
-        # storing as part of IDF data
-        idf["df"] = 0
-        for doc_id in doc_entries:
-            idf["df"] += 1
-            #print("Doc ID: %s" % (doc_id))
-            tf = doc_entries.get(doc_id) #1 + log(float(doc_entries.get(doc_id)))
-
-            #print("TF: %f" % (tf))
-
-            #print(float(log(N/df)))
-            tf_idf = tf #/float(df) #* log(N/float(df))
-            #print("TF-IDF %f" % (tf_idf))
-            idf[doc_id] = tf_idf
-
-        tf_idf_table[term] = idf
-
-    return N, tf_idf_table, index_data
+    return index_data, link_data
 
 
 if __name__ == "__main__":
     project_dir = "/home/c/chandanchowdhury/Documents/CIS-833/CSSearch/"
 
-    scrapped_data_file = "crawler/ksucs_2017-12-04_23.json"
-    scrapped_data_file = "crawler/ksucs_2017-12-04_22.json"
+    
+    scrapped_data_file = "crawler/crawler/spiders/ksucs_2017-12-09_16.json"
+    scrapped_data_file = "crawler/crawler/spiders/sample.json"
 
-    N, tf_idf_table, vocabulary = process(project_dir+scrapped_data_file)
-    print("N =%d" % N)
-    #print("vocabulary")
-    #print(vocabulary)
-    print("tf_idf_table")
-    print(tf_idf_table)
+    index_data, link_data = process(project_dir+scrapped_data_file)
+    #print("N =%d" % N)
+    print("Index")
+    print(index_data)
+    #print("link data")
+    #for l in link_data:
+    #    print("SRC: %s" % l)
+    #    for lc in link_data.get(l):
+    #        print("-> %s" % lc)
 
 
