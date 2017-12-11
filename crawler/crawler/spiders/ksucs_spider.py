@@ -58,6 +58,11 @@ class KsuCSSpider(scrapy.Spider):
             ## Convert relative URLs into full URLs
             url = href.extract().split("/")
 
+            # skip mailto and tel
+            if url[0][:7] == "mailto:" or url[0][:4] == "tel:":
+                print("----- Skipping %s" % url)
+                pass
+
             url_cleaned = ""
             # if starts with HTTP
             if url[0][:4] == "http":
