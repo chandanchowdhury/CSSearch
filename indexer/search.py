@@ -3,11 +3,14 @@ try:
 except:
     import pickle
 
+import collections
 import operator
 import string
 from sets import Set
 
 from stemming.porter import stem
+
+ROUND_DIGITS = 6
 
 def loadPickle(pickle_file):
     """
@@ -149,7 +152,7 @@ def get_links(query_terms):
     for term in query_terms:
         # get all links containing the term and put in a set
         links = Set(index_data.get(term))
-        print("\n\nQuery Term: %s" % term)
+        #print("\n\nQuery Term: %s" % term)
         #print(links)
 
         # special case for first iteration, because: empty & anything = empty
@@ -159,17 +162,18 @@ def get_links(query_terms):
         # take intersection of links set
         final_links = final_links & links
 
-        print(final_links)
+        #print(final_links)
 
     # convert the Set to List and return
     return list(final_links)
 
-def rank_links(tf_idf_table, query_terms, links, topN=5):
+def rank_links(tf_idf_table, query_terms, links):
     """
         Rank the list of given links in terms of relevance.
 
-        :param links List of URLs
+        :param TF-IDF table
         :param query_terms as list of strings
+        :param links List of URLs
 
         :return List of URLs ranked
     """
@@ -201,7 +205,7 @@ def rank_links(tf_idf_table, query_terms, links, topN=5):
             continue
 
 
-        print("Term: %s \t\t Query TF-IDF: %d" % (t, q_tf_idf.get(t)))
+        #print("Term: %s \t\t Query TF-IDF: %d" % (t, q_tf_idf.get(t)))
 
         idf_row = tf_idf_table.get(t)
         # if the query term is in our corpus
@@ -209,8 +213,8 @@ def rank_links(tf_idf_table, query_terms, links, topN=5):
             #print(idf_row)
 
             # get the document frequency
-            df = float(len(idf_row)) - 1 
-            print("DF: %d" % (df))
+            df = float(len(idf_row))
+            #print("DF: %d" % (df))
 
             # Wij denominator in CosSim
             DWij = 0
@@ -227,6 +231,7 @@ def rank_links(tf_idf_table, query_terms, links, topN=5):
                 if doc == "df":
                     continue
 
+                # skip any link that are not relevant
                 try:
                     _ = links.index(doc)
                 except:
@@ -253,7 +258,7 @@ def rank_links(tf_idf_table, query_terms, links, topN=5):
 
                     doc_vals[doc]  = vals
 
-        #print(doc_vals)
+    #print(doc_vals)
 
     # Calculate the CosSim value
     doc_score = {}
@@ -272,10 +277,170 @@ def rank_links(tf_idf_table, query_terms, links, topN=5):
 
     #print(doc_score)
 
-    doc_score = sorted(doc_score.items(), key=operator.itemgetter(1), reverse=True)
+    sorted_by_score = sorted(doc_score.items(), key=operator.itemgetter(1), reverse=True)
+    #print(sorted_by_score)
+
+    sorted_score = collections.OrderedDict()
+    for url, score in sorted_by_score:
+        sorted_score[url] = score
+
+    #print(sorted_score)
+    return sorted_score
     
 
-    return doc_score
+def print_scores(scores):
+    #print(scores)
+    keys = scores.keys()
+    keys.sort()
+    for k in keys:
+        print(k+"\t\t"),
+
+    print "Sum"
+
+    sum = 0.0
+    for k in keys:
+        print("%f\t" % scores.get(k)),
+        sum += scores.get(k)
+
+    print("%f" % sum)
+
+def normalize_scores(scores):
+    """
+        Normalize the scores so that their sum is equal to 1.
+    """
+    #print(scores)
+    keys = scores.keys()
+
+    sum = 0.0
+    for k in keys:
+        #print("%06f\t" % scores.get(k)),
+        sum += scores.get(k)
+
+    if sum == 1.0:
+        return scores
+
+    new_scores = {}
+    for k in keys:
+        new_scores[k] = scores.get(k)/float(sum)
+
+    return new_scores
+
+def calculate_pagerank_with_teleport(Graph, epsilon, iterations=50):
+    prev_score = None
+    score = None
+    iteration = 1
+
+    #print("No. of Nodes: %d" % len(Graph))
+
+    # Loop 
+    while True:
+        #print("\nIteration: "+str(iteration))
+        iteration += 1
+
+        # first iteration
+        if score is None:
+            score = {}
+            no_of_nodes = len(Graph.keys())
+            for node in Graph:
+                score[node] = 1/float(no_of_nodes)
+        else:
+            # normal iterations
+            score = {}
+            for A in Graph:
+                #print("-"*10)
+                #print("Node: "+A)
+
+                # Reinitialize the score
+                score[A] = epsilon/float(no_of_nodes)
+
+                for B in Graph:    
+                    #print("Link from: "+B)
+                    #print(Graph.get(B))
+                    #print(Graph.get(B).index(A))
+                    try:
+                        _ = Graph.get(B).index(A)                    
+                        #print(B+" points to "+A)
+                        degree_B = len(Graph.get(B))   
+                        #print("Score: "+str(prev_score[B]))
+                        #print("Degree: "+str(degree_B))
+                        #print("Adding "+str(prev_score[B]/float(degree_B))+ " to "+str(score[A]))
+                        score[A] += (1-epsilon) * prev_score[B]/float(degree_B)
+                        #print("New score:"+str(score[A]))
+                        
+                        
+                    except ValueError:
+                        #print(A +" not in "+B)
+                        pass
+                score[A] = round(score[A], ROUND_DIGITS)
+
+        #print("Before Normalization")
+        #print_scores(score)
+        #normalize the scores
+        #print("After Normalization")
+        score = normalize_scores(score)
+        #print_scores(score)
+
+        # check for convergence
+        if score == prev_score:
+            break
+        
+        prev_score = score
+
+        if iteration > iterations:
+            break
+
+    # sort by score
+    sorted_by_score = sorted(score.items(), key=operator.itemgetter(1), reverse=True)
+
+    #print(sorted_by_score)
+
+    sorted_score = collections.OrderedDict()
+    for url, score in sorted_by_score:
+        sorted_score[url] = score
+
+    #print(sorted_score)
+
+
+    return sorted_score
+
+def build_graph(link_data, links):
+    """
+        Use the link_data to build a graph of the links.
+
+        :param link_data as dictionary of source link with destination links
+        :param links the links as list for which the graph need to be created
+
+        :return graph as dictionary
+    """
+    graph = {}
+
+    # add all data for links
+    for l in links:
+        #print("Adding "+l)
+        #print(link_data.get(l))
+        graph[l] = list(link_data.get(l))
+
+    # add all links that point to links
+    for slink in link_data:
+        for l in links:
+            # the links is already in graph, skip
+            if graph.has_key(slink):
+                continue
+
+            try:
+                dest_links = list(link_data.get(slink))
+                # if slink points to l
+                _ = dest_links.index(l)
+                # add the slink to graph
+                graph[slink] = dest_links
+                #print("Adding "+slink)
+            except Exception as e:
+                pass
+
+    #print(len(graph))
+    #print(graph)
+
+    return graph
 
 
 def search(index_data, link_data, stop_word_list, search_string):
@@ -286,12 +451,36 @@ def search(index_data, link_data, stop_word_list, search_string):
     """
 
     query_terms = sanitize(search_strings, stop_word_list)
+    print(query_terms)
 
-    # get related links
+    # get all links which contain all the query terms
     links = get_links(query_terms)
+    print("\nURLs containing all of the query terms:")
+    for l in links:
+        print(l)
 
-    # rank the links
+    # rank the links using Vector model
     ranked_list = rank_links(index_data, query_terms, links)
+    #print(ranked_list)
+    print("\n\nVector model result:")
+    for url, score in ranked_list.items():
+        try:
+            _  = links.index(url)
+            print("Score: %f \t URL: %s" %(score, url))
+        except:
+            pass
+
+    graph = build_graph(link_data, links)
+
+    # rank the links using Vector model
+    scores = calculate_pagerank_with_teleport(graph, 0.8, 10)
+    print("\n\nPageRank with teleport(e=0.8) result:")
+    for url, score in scores.items():
+        try:
+            _  = links.index(url)
+            print("Score: %f \t URL: %s" %(score, url))
+        except:
+            pass
 
     return ranked_list
 
@@ -302,19 +491,26 @@ if __name__ == "__main__":
     stop_word_list = getStopWordList("stopwords.txt")
 
     index_data, link_data = loadData()
+    #print(link_data)
     
     search_strings = [
         #"computer science"
-        #"computer science information retrieval"
+        #"caragea"
+        "cornelia caragea"
+        #"computer science information retrieval"        
         #"computer science caragea"
         #"beocat"
         #"beocat help"
-        "beocat administration team"
+        #"beocat administration team"
+        #"chandan"
+        #"chandan chowdhury"
     ]
     for s in search_strings:
         print("\n\nQuery: %s" % s)
         links = search(index_data, link_data, stop_word_list, s)
-        print("\n\nResult:")
-        for l in links:
-            print(l)
+        #print("\n\nResult:")
+        #for l in links:
+        #    print(l)
+
+        
 
