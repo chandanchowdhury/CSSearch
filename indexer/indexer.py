@@ -200,7 +200,7 @@ def includeInVocabulary(vocabulary, doc_id, words):
         # if the term is in the table
         if vocabulary.has_key(w):
             doc_entry = vocabulary.get(w)
-            doc_entry["df"] += 1
+            #doc_entry["df"] += 1
 
             # if the doc_id is already in the table
             if doc_entry.has_key(doc_id):
@@ -216,7 +216,7 @@ def includeInVocabulary(vocabulary, doc_id, words):
             # a dict of {doc_id, tf}
             doc_entry = {}
             doc_entry[doc_id] = 1
-            doc_entry["df"] = 1
+            #doc_entry["df"] = 1
 
             vocabulary[w] = doc_entry
 
@@ -244,16 +244,17 @@ def updateLinksData(src_url, outgoing_links, link_data):
         if l[:4] == "http":
             # add the link to the set of links
             new_link_set.add(l)
+            print("Adding to link_data: "+l)
 
     if link_data.has_key(src_url):
         # get the link entry
         link_set = link_data.get(src_url)  
         # take the union of the link sets and save it back    
-        link_set = link_set | new_link_set
-        link_data[src_url] = link_set        
-    else:
-        # the source URL does not exists, create a new entry
-        link_data[src_url] = new_link_set
+        new_link_set = link_set | new_link_set
+        
+    
+    # the source URL does not exists, create a new entry
+    link_data[src_url] = list(new_link_set)
 
     return link_data
 
@@ -274,16 +275,16 @@ def process(scrapped_data_file):
     link_data = {}
 
     # load the previous index
-    #index_data = loadPickle(index_file)
-    #if index_data == None:
-    #    print("Cannot load index file")
-    #    exit(1)
+    index_data = loadPickle(index_file)
+    if index_data == None:
+        print("Cannot load index file")
+        exit(1)
 
     # load the previous index
-    #link_data = loadPickle(link_file)
-    #if link_data == None:
-    #    print("Cannot load index file")
-    #    exit(1)
+    link_data = loadPickle(link_file)
+    if link_data == None:
+        print("Cannot load index file")
+        exit(1)
 
     # load scrapped data
     try:
@@ -320,13 +321,13 @@ def process(scrapped_data_file):
         #break
 
     # Once the index has been created, save it for later reuse
-    #if savePickle(index_file, index_data) > 0:
-    #    print("Cannot save index file")
-    #    exit(3)
+    if savePickle(index_file, index_data) > 0:
+        print("Cannot save index file")
+        exit(3)
 
-    #if savePickle(link_file, link_data) > 0:
-    #    print("Cannot save link file")
-    #    exit(3)
+    if savePickle(link_file, link_data) > 0:
+        print("Cannot save link file")
+        exit(3)
 
     return index_data, link_data
 
@@ -336,12 +337,12 @@ if __name__ == "__main__":
 
     
     scrapped_data_file = "crawler/crawler/spiders/ksucs_2017-12-09_16.json"
-    scrapped_data_file = "crawler/crawler/spiders/sample.json"
+    #scrapped_data_file = "crawler/crawler/spiders/sample.json"
 
     index_data, link_data = process(project_dir+scrapped_data_file)
     #print("N =%d" % N)
-    print("Index")
-    print(index_data)
+    #print("Index")
+    #print(index_data)
     #print("link data")
     #for l in link_data:
     #    print("SRC: %s" % l)
