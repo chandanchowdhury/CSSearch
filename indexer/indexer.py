@@ -29,7 +29,7 @@ def getHash(url):
 
 def savePickle(pickle_file, data):
     """
-        Save data in Pickle format.
+        Save data in Pickle format. The file contents are over-written.
     """
     print("Saving pickle data to file: "+pickle_file)
 
@@ -336,7 +336,8 @@ if __name__ == "__main__":
     project_dir = "/home/c/chandanchowdhury/Documents/CIS-833/CSSearch/"
 
     
-    scrapped_data_file = "crawler/crawler/spiders/ksucs_2017-12-09_16.json"
+    #scrapped_data_file = "crawler/crawler/spiders/ksucs_2017-12-09_16.json"
+    scrapped_data_file = "crawler/crawler/spiders/ksucs_2017-12-09_20.json"
     #scrapped_data_file = "crawler/crawler/spiders/sample.json"
 
     index_data, link_data = process(project_dir+scrapped_data_file)
