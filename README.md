@@ -13,6 +13,10 @@ A simple crawler and search written python for Information Retrieval & Machine L
 
    ```pip install -r requirements.txt```
 
+* Download NLTK data
+
+    ```python -m nltk.downloader all```
+    
 ## Run
 * Run the crawler
 
@@ -25,3 +29,4 @@ A simple crawler and search written python for Information Retrieval & Machine L
 ## Required Packages
 * Scrapy - for crawling
 * Beautifulsoap - for HTML parsing
+* NLTK 
