@@ -11,6 +11,7 @@ from sets import Set
 from stemming.porter import stem
 
 ROUND_DIGITS = 6
+EPSILON = 0.8
 
 def loadPickle(pickle_file):
     """
@@ -288,21 +289,24 @@ def rank_links(tf_idf_table, query_terms, links):
     return sorted_score
     
 
-def print_scores(scores):
-    #print(scores)
-    keys = scores.keys()
-    keys.sort()
-    for k in keys:
-        print(k+"\t\t"),
+def print_scores(ranked_list, links, topN=10):
+    """
+        Takes an OrderdDict and print topN entries which are also in links
+    """
+    n = topN
+    for url, score in ranked_list.items():
+        try:
+            _  = links.index(url)
+            print("Score: %f \t URL: %s" %(score, url))
 
-    print "Sum"
+            n -= 1
 
-    sum = 0.0
-    for k in keys:
-        print("%f\t" % scores.get(k)),
-        sum += scores.get(k)
+            if n <= 0:
+                break
+        except:
+            pass
 
-    print("%f" % sum)
+        
 
 def normalize_scores(scores):
     """
@@ -450,39 +454,29 @@ def search(index_data, link_data, stop_word_list, search_string):
         3. Rank the links
     """
 
+    topN = 5
+
     query_terms = sanitize(search_strings, stop_word_list)
     print(query_terms)
 
     # get all links which contain all the query terms
     links = get_links(query_terms)
-    print("\nURLs containing all of the query terms:")
+    print("\nURLs containing all of the query terms (%d):" % len(links))
     for l in links:
         print(l)
 
     # rank the links using Vector model
-    ranked_list = rank_links(index_data, query_terms, links)
+    vector_ranked = rank_links(index_data, query_terms, links)
     #print(ranked_list)
-    print("\n\nVector model result:")
-    for url, score in ranked_list.items():
-        try:
-            _  = links.index(url)
-            print("Score: %f \t URL: %s" %(score, url))
-        except:
-            pass
-
+    
+    # build a graph of the links
     graph = build_graph(link_data, links)
 
     # rank the links using Vector model
-    scores = calculate_pagerank_with_teleport(graph, 0.8, 10)
-    print("\n\nPageRank with teleport(e=0.8) result:")
-    for url, score in scores.items():
-        try:
-            _  = links.index(url)
-            print("Score: %f \t URL: %s" %(score, url))
-        except:
-            pass
-
-    return ranked_list
+    page_ranked = calculate_pagerank_with_teleport(graph, EPSILON, 10)        
+    
+    # return the data
+    return links, vector_ranked, page_ranked
 
 
 if __name__ == "__main__":
@@ -496,21 +490,29 @@ if __name__ == "__main__":
     search_strings = [
         #"computer science"
         #"caragea"
-        "cornelia caragea"
+        #"cornelia caragea"
         #"computer science information retrieval"        
         #"computer science caragea"
+        #"computer science facebook"
         #"beocat"
         #"beocat help"
         #"beocat administration team"
         #"chandan"
         #"chandan chowdhury"
+        #"krutarth"
+        #"ranojoy chatterjee"
+        #"joydeep mitra"
+        "George Amariucai" # zero results?
     ]
     for s in search_strings:
         print("\n\nQuery: %s" % s)
-        links = search(index_data, link_data, stop_word_list, s)
-        #print("\n\nResult:")
-        #for l in links:
-        #    print(l)
+        links, vector_ranked, page_ranked = search(index_data, link_data, stop_word_list, s)
+        print("\n\nVector model result:")
+        print_scores(vector_ranked, links)
+
+        print("\n\nPageRank with teleport(e=%f) result:" % EPSILON)
+        print_scores(page_ranked, links)
+        
 
         
 
